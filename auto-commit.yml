@@ -1,0 +1,60 @@
+name: Auto Commit
+
+on:
+  schedule:
+    - cron: '0 3 * * *'   # once daily
+  workflow_dispatch:
+
+jobs:
+  commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Decide and commit
+        run: |
+          python3 << 'EOF'
+          import json, os, random, subprocess
+          from datetime import date
+
+          STATE_FILE = ".github/commit-state.json"
+
+          if os.path.exists(STATE_FILE):
+              state = json.load(open(STATE_FILE))
+          else:
+              state = {"cycle_start": str(date.today()), "zero_days": None, "day_index": 0}
+
+          if state["zero_days"] is None or state["day_index"] >= 14:
+              state["cycle_start"] = str(date.today())
+              state["day_index"] = 0
+              state["zero_days"] = random.sample(range(14), k=random.randint(1, 2))
+
+          is_zero = state["day_index"] in state["zero_days"]
+
+          if is_zero:
+              n = 0
+          else:
+              n = int(random.triangular(1, 100, 30))
+
+          print(f"Day index {state['day_index']} -> commits: {n}")
+
+          if n > 0:
+              subprocess.run(["git", "config", "user.name", "yassine808"])
+              subprocess.run(["git", "config", "user.email", "166349232+yassine808@users.noreply.github.com"])
+              for i in range(n):
+                  with open("activity.log", "a") as f:
+                      f.write(f"auto update {date.today()} #{i+1}\n")
+                  subprocess.run(["git", "add", "activity.log"])
+                  subprocess.run(["git", "commit", "-m", "chore: auto update"])
+
+          state["day_index"] += 1
+          os.makedirs(".github", exist_ok=True)
+          json.dump(state, open(STATE_FILE, "w"), indent=2)
+
+          subprocess.run(["git", "add", STATE_FILE])
+          subprocess.run(["git", "commit", "-m", "chore: update commit state"], check=False)
+          EOF
+
+          git push
