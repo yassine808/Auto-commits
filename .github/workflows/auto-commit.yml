@@ -5,9 +5,15 @@ on:
     - cron: '0 3 * * *'   # once daily
   workflow_dispatch:
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   commit:
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -20,6 +26,7 @@ jobs:
           from datetime import date
 
           STATE_FILE = ".github/commit-state.json"
+          PR_FILE = "pull request.md"
 
           if os.path.exists(STATE_FILE):
               state = json.load(open(STATE_FILE))
@@ -32,29 +39,55 @@ jobs:
               state["zero_days"] = random.sample(range(14), k=random.randint(1, 2))
 
           is_zero = state["day_index"] in state["zero_days"]
-
-          if is_zero:
-              n = 0
-          else:
-              n = int(random.triangular(1, 100, 30))
+          n = 0 if is_zero else int(random.triangular(1, 100, 30))
 
           print(f"Day index {state['day_index']} -> commits: {n}")
 
+          subprocess.run(["git", "config", "user.name", "yassine808"], check=True)
+          subprocess.run(["git", "config", "user.email", "166349232+yassine808@users.noreply.github.com"], check=True)
+
           if n > 0:
-              subprocess.run(["git", "config", "user.name", "yassine808"])
-              subprocess.run(["git", "config", "user.email", "166349232+yassine808@users.noreply.github.com"])
               for i in range(n):
                   with open("activity.log", "a") as f:
                       f.write(f"auto update {date.today()} #{i+1}\n")
                   subprocess.run(["git", "add", "activity.log"])
-                  subprocess.run(["git", "commit", "-m", "chore: auto update"])
+                  subprocess.run(["git", "commit", "-m", "chore: auto update"], check=True)
+
+          # Independent ~35% daily chance to open a PR, touching ONLY "pull request.md"
+          if random.random() < 0.35:
+              branch = f"auto-pr/{date.today()}-{random.randint(1000, 9999)}"
+              subprocess.run(["git", "checkout", "-b", branch], check=True)
+
+              with open(PR_FILE, "a") as f:
+                  f.write(f"Update {date.today()} {random.randint(1000,9999)}\n")
+              subprocess.run(["git", "add", PR_FILE], check=True)
+              subprocess.run(["git", "commit", "-m", "chore: update pull request.md"], check=True)
+
+              subprocess.run(["git", "push", "origin", branch], check=True)
+              subprocess.run([
+                  "gh", "pr", "create",
+                  "--title", f"Auto update {date.today()}",
+                  "--body", "Automated update.",
+                  "--base", "main",
+                  "--head", branch,
+              ], check=True)
+
+              result = subprocess.run(
+                  ["gh", "pr", "list", "--head", branch, "--json", "number", "-q", ".[0].number"],
+                  capture_output=True, text=True, check=True,
+              )
+              pr_number = result.stdout.strip()
+              subprocess.run(["gh", "pr", "merge", pr_number, "--merge", "--delete-branch", "--admin"], check=True)
+
+              subprocess.run(["git", "checkout", "main"], check=True)
+              subprocess.run(["git", "pull"], check=True)
 
           state["day_index"] += 1
           os.makedirs(".github", exist_ok=True)
           json.dump(state, open(STATE_FILE, "w"), indent=2)
 
           subprocess.run(["git", "add", STATE_FILE])
-          subprocess.run(["git", "commit", "-m", "chore: update commit state"], check=False)
+          subprocess.run(["git", "commit", "-m", "chore: update commit state"], check=True)
           EOF
 
           git push
