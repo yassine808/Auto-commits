@@ -53,34 +53,33 @@ jobs:
                   subprocess.run(["git", "add", "activity.log"])
                   subprocess.run(["git", "commit", "-m", "chore: auto update"], check=True)
 
-          # Independent ~35% daily chance to open a PR, touching ONLY "pull request.md"
-          if random.random() < 0.35:
-              branch = f"auto-pr/{date.today()}-{random.randint(1000, 9999)}"
-              subprocess.run(["git", "checkout", "-b", branch], check=True)
+          # Every run: open a PR touching ONLY "pull request.md", then auto-merge it
+          branch = f"auto-pr/{date.today()}-{random.randint(1000, 9999)}"
+          subprocess.run(["git", "checkout", "-b", branch], check=True)
 
-              with open(PR_FILE, "a") as f:
-                  f.write(f"Update {date.today()} {random.randint(1000,9999)}\n")
-              subprocess.run(["git", "add", PR_FILE], check=True)
-              subprocess.run(["git", "commit", "-m", "chore: update pull request.md"], check=True)
+          with open(PR_FILE, "a") as f:
+              f.write(f"Update {date.today()} {random.randint(1000,9999)}\n")
+          subprocess.run(["git", "add", PR_FILE], check=True)
+          subprocess.run(["git", "commit", "-m", "chore: update pull request.md"], check=True)
 
-              subprocess.run(["git", "push", "origin", branch], check=True)
-              subprocess.run([
-                  "gh", "pr", "create",
-                  "--title", f"Auto update {date.today()}",
-                  "--body", "Automated update.",
-                  "--base", "main",
-                  "--head", branch,
-              ], check=True)
+          subprocess.run(["git", "push", "origin", branch], check=True)
+          subprocess.run([
+              "gh", "pr", "create",
+              "--title", f"Auto update {date.today()}",
+              "--body", "Automated update.",
+              "--base", "main",
+              "--head", branch,
+          ], check=True)
 
-              result = subprocess.run(
-                  ["gh", "pr", "list", "--head", branch, "--json", "number", "-q", ".[0].number"],
-                  capture_output=True, text=True, check=True,
-              )
-              pr_number = result.stdout.strip()
-              subprocess.run(["gh", "pr", "merge", pr_number, "--merge", "--delete-branch", "--admin"], check=True)
+          result = subprocess.run(
+              ["gh", "pr", "list", "--head", branch, "--json", "number", "-q", ".[0].number"],
+              capture_output=True, text=True, check=True,
+          )
+          pr_number = result.stdout.strip()
+          subprocess.run(["gh", "pr", "merge", pr_number, "--merge", "--delete-branch", "--admin"], check=True)
 
-              subprocess.run(["git", "checkout", "main"], check=True)
-              subprocess.run(["git", "pull"], check=True)
+          subprocess.run(["git", "checkout", "main"], check=True)
+          subprocess.run(["git", "pull"], check=True)
 
           state["day_index"] += 1
           os.makedirs(".github", exist_ok=True)
