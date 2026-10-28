@@ -1,8 +1,8 @@
 {
-  "cycle_start": "2026-10-14",
+  "cycle_start": "2026-10-28",
   "zero_days": [
-    0,
-    1
+    2,
+    11
   ],
-  "day_index": 14
+  "day_index": 1
 }
